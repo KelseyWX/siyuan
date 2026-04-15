@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>📚 单词工坊 · 30组分阶测验系统 | 每个List独立问卷+二维码入口</title>
+    <!-- SheetJS 解析 Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <!-- 二维码生成库 (轻量) -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <!-- 备用二维码生成器（若上面库有问题，使用内置简单canvas）此处使用 QRCode.js 确保稳定 -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: system-ui, 'Segoe UI', 'Inter', 'Roboto', sans-serif;
+            background: #f1f5f9;
+            color: #0f172a;
+            padding: 1.5rem;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        /* 头部 */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            background: white;
+            padding: 1rem 2rem;
+            border-radius: 2rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        }
+
+        h1 {
+            font-weight: 800;
+            background: linear-gradient(135deg, #1e4668, #2c7a47);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            font-size: 1.8rem;
+        }
+
+        .upload-zone {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .file-label {
+            background: #1e4668;
+            color: white;
+            padding: 0.5rem 1.2rem;
+            border-radius: 2rem;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: 0.2s;
+            display: inline-block;
+        }
+
+        .file-label:hover {
+            background: #0f3552;
+        }
+
+        .btn-outline {
+            background: white;
+            border: 1px solid #cbd5e1;
+            padding: 0.5rem 1.2rem;
+            border-radius: 2rem;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .btn-outline:hover {
+            background: #eef2ff;
+            border-color: #1e4668;
+        }
+
+        .badge {
+            background: #e2e8f0;
+            border-radius: 30px;
+            padding: 0.2rem 0.8rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        /* 主视图切换 */
+        .view {
+            transition: 0.2s;
+        }
+
+        .hidden-view {
+            display: none;
+        }
+
+        /* 30个入口网格 */
+        .portals-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .portal-card {
+            background: white;
+            border-radius: 1.5rem;
+            padding: 1.2rem;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+            transition: transform 0.1s;
+            border: 1px solid #e2edf2;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .portal-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 20px 25px -12px rgba(0,0,0,0.1);
+        }
+
+        .card-header-list {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            border-bottom: 2px solid #eef2f8;
+            padding-bottom: 0.5rem;
+            margin-bottom: 0.8rem;
+        }
+
+        .list-num {
+            font-weight: 800;
+            font-size: 1.3rem;
+            background: #1e4668;
+            color: white;
+            padding: 0.2rem 0.7rem;
+            border-radius: 30px;
+            display: inline-block;
+            font-size: 0.9rem;
+        }
+
+        .word-stats {
+            font-size: 0.7rem;
+            background: #f1f5f9;
+            padding: 0.2rem 0.6rem;
+            border-radius: 20px;
+        }
+
+        .qr-container {
+            display: flex;
+            justify-content: center;
+            margin: 0.8rem 0;
+            background: #fafcff;
+            padding: 0.5rem;
+            border-radius: 1rem;
+        }
+
+        .btn-start {
+            background: #2c7a47;
+            color: white;
+            border: none;
+            padding: 0.6rem;
+            border-radius: 2rem;
+            font-weight: 600;
+            margin-top: 0.6rem;
+            cursor: pointer;
+            transition: 0.2s;
+            text-align: center;
+        }
+
+        .btn-start:hover {
+            background: #1f5e38;
+        }
+
+        /* 测验区域样式 */
+        .quiz-wrapper {
+            background: white;
+            border-radius: 2rem;
+            padding: 1.8rem 2rem;
+            box-shadow: 0 20px 35px -10px rgba(0,0,0,0.1);
+        }
+
+        .quiz-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid #eef2ff;
+            padding-bottom: 1rem;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            background: #f8fafc;
+            padding: 1rem 1.2rem;
+            border-radius: 1.2rem;
+            margin-bottom: 1.8rem;
+        }
+
+        .info-field {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+
+        .info-field label {
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+
+        .info-field input {
+            padding: 0.6rem 1rem;
+            border-radius: 1rem;
+            border: 1px solid #cbd5e1;
+        }
+
+        .quiz-question {
+            background: #ffffff;
+            border-radius: 1rem;
+            padding: 0.8rem 1rem;
+            margin-bottom: 0.9rem;
+            border: 1px solid #e2edf7;
+            transition: all 0.1s;
+        }
+
+        .quiz-question.correct-highlight {
+            background: #e6f9ed;
+            border-left: 5px solid #2b9348;
+        }
+
+        .quiz-question.wrong-highlight {
+            background: #ffe9e9;
+            border-left: 5px solid #e63946;
+        }
+
+        .q-meaning {
+            background: #eef2fa;
+            display: inline-block;
+            padding: 0.2rem 0.8rem;
+            border-radius: 30px;
+            font-weight: 600;
+        }
+
+        .answer-input {
+            width: 100%;
+            padding: 0.6rem 1rem;
+            margin-top: 0.6rem;
+            border-radius: 1rem;
+            border: 1px solid #cbdde9;
+        }
+
+        .answer-feedback {
+            font-size: 0.7rem;
+            margin-top: 0.3rem;
+        }
+
+        .score-area {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: #eef2fa;
+            border-radius: 1.5rem;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .flex-btns {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 1rem;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        .warning-note {
+            font-size: 0.7rem;
+            color: #b45309;
+            background: #ffefdf;
+            padding: 0.3rem 0.8rem;
+            border-radius: 1rem;
+            margin-top: 0.5rem;
+            text-align: center;
+        }
+
+        footer {
+            margin-top: 2rem;
+            text-align: center;
+            font-size: 0.7rem;
+            color: #5b7c99;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>📖 词汇工坊 · 30组分阶测验</h1>
+        <div class="upload-zone">
+            <label class="file-label" id="uploadLabel">📂 上传 Excel (.xlsx/.xls)</label>
+            <input type="file" id="excelInput" accept=".xlsx, .xls" style="display:none">
+            <button class="btn-outline" id="resetDefaultBtn">🔄 重置默认词库(演示)</button>
+            <span id="globalStatus" class="badge">等待上传</span>
+        </div>
+    </div>
+
+    <!-- 视图1: 所有问卷入口列表（30个二维码） -->
+    <div id="portalsView" class="view">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 1rem;">
+            <h3>📌 30个独立测验入口 (每个List随机15题)  ↓ 扫码或点击按钮开始</h3>
+            <button id="backToPortalsFromQuizHelper" class="btn-outline" style="display: none;">🏠 返回入口总览</button>
+        </div>
+        <div id="portalsGrid" class="portals-grid">
+            <div style="grid-column:1/-1; text-align:center; padding:3rem;">⬆️ 请先上传Excel文件，系统将自动平均分成30组并为每组生成15题问卷</div>
+        </div>
+    </div>
+
+    <!-- 视图2: 单个测验答题界面 -->
+    <div id="quizView" class="view hidden-view">
+        <div class="quiz-wrapper">
+            <div class="quiz-header">
+                <div><strong id="quizListTitle">List #1 测验</strong><span id="quizSubInfo" class="badge" style="margin-left: 0.8rem;">15道拼写题</span></div>
+                <button id="returnToPortalsBtn" class="btn-outline">← 返回所有入口</button>
+            </div>
+            <div class="info-grid">
+                <div class="info-field">
+                    <label>👤 学生姓名</label>
+                    <input type="text" id="quizStudentName" placeholder="姓名" autocomplete="off">
+                </div>
+                <div class="info-field">
+                    <label>🆔 学号/邮箱</label>
+                    <input type="text" id="quizStudentId" placeholder="学号/邮箱" autocomplete="off">
+                </div>
+            </div>
+            <div id="dynamicQuizArea"></div>
+            <div class="flex-btns">
+                <button id="submitQuizBtn" class="btn-outline" style="background:#2c7a47; color:white; border:none;">✅ 提交打分</button>
+                <button id="clearQuizAnswersBtn" class="btn-outline">🧹 清空答案</button>
+            </div>
+            <div id="quizScoreArea" class="score-area" style="display: none;"></div>
+        </div>
+    </div>
+    <footer>⭐ 上传Excel (第一列英文，第二列中文，无表头) → 自动平均分为30组 → 每组随机抽取15词生成独立问卷 → 每个卡片都有专属二维码，扫码直达测验！</footer>
+</div>
+
+<script>
+    // ---------- 全局数据 ----------
+    let masterWords = [];               // 原始词库 [{word, meaning}]
+    let quizGroupsData = [];            // 存储30个list对应的测验题目数组 (每个元素是 [{word, meaning}] 长度15)
+    let currentActiveQuizIndex = -1;    // 当前正在作答的问卷索引 (0-29)
+    let currentUserAnswers = [];        // 当前问卷临时答案(UI同步)
+    
+    // DOM 元素
+    const portalsView = document.getElementById('portalsView');
+    const quizView = document.getElementById('quizView');
+    const portalsGrid = document.getElementById('portalsGrid');
+    const excelInput = document.getElementById('excelInput');
+    const uploadLabel = document.getElementById('uploadLabel');
+    const resetDefaultBtn = document.getElementById('resetDefaultBtn');
+    const globalStatusSpan = document.getElementById('globalStatus');
+    const returnToPortalsBtn = document.getElementById('returnToPortalsBtn');
+    const submitQuizBtn = document.getElementById('submitQuizBtn');
+    const clearQuizAnswersBtn = document.getElementById('clearQuizAnswersBtn');
+    const dynamicQuizArea = document.getElementById('dynamicQuizArea');
+    const quizScoreArea = document.getElementById('quizScoreArea');
+    const quizListTitle = document.getElementById('quizListTitle');
+    const backToPortalsFromQuizHelper = document.getElementById('backToPortalsFromQuizHelper');
+    
+    // 辅助函数: 打乱数组 (Fisher-Yates)
+    function shuffleArray(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    }
+    
+    // 将单词列表平均分成30组 (每组数量接近)
+    function splitInto30Groups(wordArray) {
+        if (!wordArray.length) return [];
+        const total = wordArray.length;
+        const groupSize = Math.ceil(total / 30);
+        const groups = [];
+        for (let i = 0; i < 30; i++) {
+            const start = i * groupSize;
+            const end = Math.min(start + groupSize, total);
+            if (start >= total) {
+                groups.push([]); // 末尾空组用空数组填充，后续会用警告
+            } else {
+                groups.push(wordArray.slice(start, end));
+            }
+        }
+        // 确保30组，若不足30组(单词极少时)最后一组可能空，但后续抽取15题会重复抽取，补全警告。
+        return groups;
+    }
+    
+    // 从单词池中随机抽取 n 个单词 (允许重复，当池子不够时重复抽取直到满足数量)
+    function extractRandomQuestions(wordPool, n) {
+        if (!wordPool.length) return [];
+        const result = [];
+        const poolCopy = [...wordPool];
+        if (poolCopy.length >= n) {
+            // 随机不重复抽取
+            const shuffled = shuffleArray([...poolCopy]);
+            return shuffled.slice(0, n);
+        } else {
+            // 单词不足n，允许重复抽取直至满足
+            while (result.length < n) {
+                for (let w of poolCopy) {
+                    if (result.length < n) result.push({ ...w });
+                    else break;
+                }
+            }
+            return result;
+        }
+    }
+    
+    // 核心: 根据总单词列表生成30组测验数据 (每组固定15个随机题目)
+    function generateAllQuizzesFromMaster(wordsArray) {
+        if (!wordsArray.length) {
+            alert("词库为空，无法生成问卷！");
+            return [];
+        }
+        // 先随机打乱原始顺序再平均分组 (保证每个list词汇分布均匀)
+        const shuffledWords = shuffleArray([...wordsArray]);
+        const groups = splitInto30Groups(shuffledWords);
+        const allQuizzes = [];
+        for (let i = 0; i < 30; i++) {
+            const groupWords = groups[i];
+            if (groupWords.length === 0) {
+                // 极端情况：若某组无单词，从整体词库紧急补充分配，避免空测验
+                const fallbackWords = extractRandomQuestions(wordsArray, 15);
+                allQuizzes.push(fallbackWords);
+                continue;
+            }
+            // 从当前组随机抽15个单词（若组内不足15则重复抽取）
+            const quizQuestions = extractRandomQuestions(groupWords, 15);
+            allQuizzes.push(quizQuestions);
+        }
+        return allQuizzes;
+    }
+    
+    // 保存到 localStorage
+    function saveDataToLocal() {
+        if (masterWords.length) {
+            localStorage.setItem('vocabMaster', JSON.stringify(masterWords));
+            localStorage.setItem('quizGroupsData', JSON.stringify(quizGroupsData));
+        }
+    }
+    
+    // 加载本地数据
+    function loadLocalData() {
+        const savedMaster = localStorage.getItem('vocabMaster');
+        const savedQuizzes = localStorage.getItem('quizGroupsData');
+        if (savedMaster && savedQuizzes) {
+            try {
+                masterWords = JSON.parse(savedMaster);
+                quizGroupsData = JSON.parse(savedQuizzes);
+                if (masterWords.length && quizGroupsData.length === 30) {
+                    globalStatusSpan.innerText = `📚 ${masterWords.length} 单词 | 30组已就绪`;
+                    renderAllPortals();   // 渲染入口
+                    return true;
+                }
+            } catch(e) {}
+        }
+        return false;
+    }
+    
+    // 刷新全部入口 (生成30个卡片+二维码)
+    function renderAllPortals() {
+        if (!quizGroupsData.length || quizGroupsData.length !== 30) {
+            portalsGrid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:2rem;">⚠️ 尚未生成30组问卷，请先上传有效的Excel文件</div>`;
+            return;
+        }
+        let html = '';
+        for (let i = 0; i < quizGroupsData.length; i++) {
+            const questions = quizGroupsData[i];
+            const wordCountInQuiz = questions.length; // 应为15
+            // 该组对应原始分组单词数量? 为了显示信息，重新计算大致单词源（从masterWords分组推算显示统计数据，但简单显示该list题目数量即可）
+            html += `
+                <div class="portal-card" data-list-idx="${i}">
+                    <div class="card-header-list">
+                        <span class="list-num">📋 List ${i+1}</span>
+                        <span class="word-stats">🔤 ${wordCountInQuiz} 个测验词</span>
+                    </div>
+                    <div class="qr-container" id="qr_${i}"></div>
+                    <button class="btn-start" data-idx="${i}">✏️ 开始测验 (List ${i+1})</button>
+                    <div class="warning-note" style="font-size:0.65rem;">✅ 扫码或点击按钮进入</div>
+                </div>
+            `;
+        }
+        portalsGrid.innerHTML = html;
+        // 为每个卡片生成二维码 (URL + ?quiz_id=idx)
+        const baseUrl = window.location.href.split('?')[0].split('#')[0];
+        for (let i = 0; i < quizGroupsData.length; i++) {
+            const qrDiv = document.getElementById(`qr_${i}`);
+            if (qrDiv) {
+                qrDiv.innerHTML = ''; // 清空
+                const quizUrl = `${baseUrl}?quiz_id=${i}`;
+                // 使用 QRCode.js 生成二维码 (依赖库)
+                try {
+                    new QRCode(qrDiv, {
+                        text: quizUrl,
+                        width: 110,
+                        height: 110,
+                        colorDark: "#1e4668",
+                        colorLight: "#ffffff",
+                        correctLevel: QRCode.CorrectLevel.M
+                    });
+                } catch(err) {
+                    qrDiv.innerHTML = `<canvas width="110" height="110" style="border:1px solid #ccc;"></canvas><div style="font-size:9px;">二维码生成失败</div>`;
+                }
+            }
+        }
+        // 绑定按钮事件
+        document.querySelectorAll('.btn-start').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const idx = btn.getAttribute('data-idx');
+                if (idx !== null) loadQuizById(parseInt(idx));
+            });
+        });
+    }
+    
+    // 加载指定索引的问卷并显示答题视图
+    function loadQuizById(quizIndex) {
+        if (!quizGroupsData[quizIndex] || quizGroupsData[quizIndex].length === 0) {
+            alert("该问卷数据异常，请重新上传单词表");
+            return;
+        }
+        currentActiveQuizIndex = quizIndex;
+        const questions = quizGroupsData[quizIndex];
+        quizListTitle.innerText = `📝 List ${quizIndex+1} · 单词拼写测验`;
+        document.getElementById('quizSubInfo').innerText = `${questions.length} 道题目 (根据中文写英文)`;
+        // 重置答题区域和分数显示
+        quizScoreArea.style.display = 'none';
+        quizScoreArea.innerHTML = '';
+        // 清空学生信息（可选保留之前的，但建议每次清空）
+        document.getElementById('quizStudentName').value = '';
+        document.getElementById('quizStudentId').value = '';
+        // 渲染15道题目
+        renderQuizQuestions(questions);
+        // 切换视图
+        portalsView.classList.add('hidden-view');
+        quizView.classList.remove('hidden-view');
+        // 重置用户答案数组
+        currentUserAnswers = new Array(questions.length).fill('');
+        // 绑定输入同步
+        for (let i = 0; i < questions.length; i++) {
+            const input = document.getElementById(`quiz_answer_${i}`);
+            if (input) {
+                input.value = '';
+                input.addEventListener('input', (e) => {
+                    currentUserAnswers[i] = e.target.value;
+                });
+            }
+            // 移除高亮class
+            const qDiv = document.getElementById(`quizItemDiv_${i}`);
+            if (qDiv) {
+                qDiv.classList.remove('correct-highlight', 'wrong-highlight');
+            }
+            const fbSpan = document.getElementById(`quiz_fb_${i}`);
+            if (fbSpan) fbSpan.innerHTML = '';
+        }
+    }
+    
+    // 渲染具体问卷题目 (15个)
+    function renderQuizQuestions(questions) {
+        if (!questions.length) return;
+        let html = '';
+        questions.forEach((q, idx) => {
+            html += `
+                <div class="quiz-question" id="quizItemDiv_${idx}">
+                    <div class="q-title">
+                        <span>${idx+1}. &nbsp;</span>
+                        <span class="q-meaning">📖 ${escapeHtml(q.meaning)}</span>
+                    </div>
+                    <input type="text" class="answer-input" id="quiz_answer_${idx}" placeholder="请输入英文单词..." autocomplete="off">
+                    <div class="answer-feedback" id="quiz_fb_${idx}"></div>
+                </div>
+            `;
+        });
+        dynamicQuizArea.innerHTML = html;
+    }
+    
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+    
+    // 提交评分 (基于当前激活的问卷)
+    function submitScore() {
+        if (currentActiveQuizIndex === -1 || !quizGroupsData[currentActiveQuizIndex]) {
+            alert("没有激活的测验，请返回入口重新开始");
+            return;
+        }
+        const questions = quizGroupsData[currentActiveQuizIndex];
+        const totalQuestions = questions.length;
+        // 收集最新答案
+        for (let i = 0; i < totalQuestions; i++) {
+            const inputEl = document.getElementById(`quiz_answer_${i}`);
+            if (inputEl) currentUserAnswers[i] = inputEl.value;
+        }
+        let score = 0;
+        const results = [];
+        for (let i = 0; i < totalQuestions; i++) {
+            const correct = questions[i].word;
+            const userAns = (currentUserAnswers[i] || "").trim().toLowerCase();
+            const isCorrect = (userAns === correct.toLowerCase());
+            if (isCorrect) score += (100 / totalQuestions); // 每题分数均摊
+            results.push({ i, isCorrect, correctWord: correct, userAnswer: currentUserAnswers[i] });
+        }
+        const finalScore = Math.round(score);
+        // 高亮每道题
+        for (let i = 0; i < totalQuestions; i++) {
+            const qDiv = document.getElementById(`quizItemDiv_${i}`);
+            const fbSpan = document.getElementById(`quiz_fb_${i}`);
+            if (qDiv) {
+                qDiv.classList.remove('correct-highlight', 'wrong-highlight');
+                if (results[i].isCorrect) qDiv.classList.add('correct-highlight');
+                else qDiv.classList.add('wrong-highlight');
+            }
+            if (fbSpan) {
+                if (results[i].isCorrect) {
+                    fbSpan.innerHTML = '✅ 正确';
+                    fbSpan.style.color = '#2b6e3c';
+                } else {
+                    fbSpan.innerHTML = `❌ 正确答案: ${results[i].correctWord} ，你的答案: ${results[i].userAnswer || "(未填)"}`;
+                    fbSpan.style.color = '#c44536';
+                }
+            }
+        }
+        const studentName = document.getElementById('quizStudentName').value.trim() || "同学";
+        const studentId = document.getElementById('quizStudentId').value.trim() || "";
+        quizScoreArea.style.display = 'block';
+        quizScoreArea.innerHTML = `🎉 ${escapeHtml(studentName)} ${studentId ? '('+escapeHtml(studentId)+')' : ''}  List ${currentActiveQuizIndex+1} 得分：${finalScore} / 100 分  ${finalScore >= 80 ? '🏆 优秀！' : (finalScore>=60 ? '👍 再接再厉' : '📚 再复习一遍单词吧')}`;
+    }
+    
+    function clearCurrentQuizAnswers() {
+        if (currentActiveQuizIndex === -1) return;
+        const total = quizGroupsData[currentActiveQuizIndex].length;
+        for (let i = 0; i < total; i++) {
+            const inp = document.getElementById(`quiz_answer_${i}`);
+            if (inp) inp.value = '';
+            const fb = document.getElementById(`quiz_fb_${i}`);
+            if (fb) fb.innerHTML = '';
+            const qDiv = document.getElementById(`quizItemDiv_${i}`);
+            if (qDiv) qDiv.classList.remove('correct-highlight', 'wrong-highlight');
+        }
+        currentUserAnswers.fill('');
+        quizScoreArea.style.display = 'none';
+    }
+    
+    // 重置并基于词库刷新整个系统
+    function rebuildSystemFromWords(wordsArray) {
+        if (!wordsArray.length) {
+            alert("词库为空！请上传有效的单词表。");
+            return false;
+        }
+        masterWords = [...wordsArray];
+        quizGroupsData = generateAllQuizzesFromMaster(masterWords);
+        saveDataToLocal();
+        globalStatusSpan.innerText = `✅ 已生成30组 | 总词${masterWords.length}`;
+        renderAllPortals();
+        return true;
+    }
+    
+    // 解析Excel
+    function handleExcel(file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+            if (!rows || rows.length === 0) {
+                alert("Excel无数据");
+                return;
+            }
+            const words = [];
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                if (!row || row.length < 2) continue;
+                let eng = row[0] ? String(row[0]).trim() : '';
+                let chn = row[1] ? String(row[1]).trim() : '';
+                if (eng === "" || chn === "") continue;
+                words.push({ word: eng, meaning: chn });
+            }
+            if (words.length === 0) {
+                alert("未检测到有效单词对，请确保第一列英文，第二列中文，无表头");
+                return;
+            }
+            rebuildSystemFromWords(words);
+        };
+        reader.readAsArrayBuffer(file);
+    }
+    
+    // 默认内置演示词库 (保证至少450+单词方便分组，内置350个左右演示)
+    function generateDefaultWords() {
+        const base = [];
+        const prefixes = ["ab","com","de","ex","in","pre","re","trans","uni","multi"];
+        const suffixes = ["able","tion","ment","ing","ed","ful","less"];
+        for (let i=1; i<=360; i++) {
+            base.push({ word: `word${i}`, meaning: `示例含义${i}` });
+        }
+        const demoExt = [
+            { word:"apple", meaning:"苹果"},{ word:"brilliant", meaning:"灿烂的"},{ word:"challenge", meaning:"挑战"},{ word:"diligent", meaning:"勤奋的"},
+            { word:"elegant", meaning:"优雅的"},{ word:"fortune", meaning:"财富"},{ word:"generous", meaning:"慷慨"},{ word:"harmony", meaning:"和谐"},
+            { word:"innovate", meaning:"创新"},{ word:"justice", meaning:"正义"},{ word:"keen", meaning:"敏锐的"},{ word:"luminous", meaning:"发光的"}
+        ];
+        return [...base.slice(0,300), ...demoExt];
+    }
+    
+    // 重置默认词库
+    function resetDefault() {
+        const defaultWords = generateDefaultWords();
+        rebuildSystemFromWords(defaultWords);
+        globalStatusSpan.innerText = `📖 默认演示词库 (${masterWords.length}词)`;
+    }
+    
+    // URL 参数检测 (进入特定问卷)
+    function checkUrlAndLoadQuiz() {
+        const params = new URLSearchParams(window.location.search);
+        const quizId = params.get('quiz_id');
+        if (quizId !== null && !isNaN(parseInt(quizId))) {
+            const idx = parseInt(quizId);
+            if (quizGroupsData && quizGroupsData[idx] && quizGroupsData[idx].length) {
+                loadQuizById(idx);
+            } else {
+                // 可能尚未生成数据，等待先初始化默认
+                if (masterWords.length === 0) resetDefault();
+                setTimeout(() => {
+                    if (quizGroupsData[idx] && quizGroupsData[idx].length) loadQuizById(idx);
+                    else alert("该问卷暂不可用，请返回入口");
+                }, 100);
+            }
+        }
+    }
+    
+    // 返回入口
+    function backToPortals() {
+        portalsView.classList.remove('hidden-view');
+        quizView.classList.add('hidden-view');
+        currentActiveQuizIndex = -1;
+        // 可选刷新入口卡片（确保数据最新）
+        if (quizGroupsData.length) renderAllPortals();
+    }
+    
+    // 初始化事件
+    function initEvents() {
+        uploadLabel.addEventListener('click', () => excelInput.click());
+        excelInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) handleExcel(e.target.files[0]);
+            excelInput.value = '';
+        });
+        resetDefaultBtn.addEventListener('click', resetDefault);
+        returnToPortalsBtn.addEventListener('click', backToPortals);
+        if(backToPortalsFromQuizHelper) backToPortalsFromQuizHelper.addEventListener('click', backToPortals);
+        submitQuizBtn.addEventListener('click', submitScore);
+        clearQuizAnswersBtn.addEventListener('click', clearCurrentQuizAnswers);
+    }
+    
+    // 启动
+    function init() {
+        initEvents();
+        const loaded = loadLocalData();
+        if (!loaded || masterWords.length === 0) {
+            resetDefault();
+        } else {
+            renderAllPortals();
+        }
+        checkUrlAndLoadQuiz();
+    }
+    init();
+</script>
+</body>
+</html>
